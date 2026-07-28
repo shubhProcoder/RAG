@@ -1,0 +1,156 @@
+/**
+ * API client — handles all HTTP communication with the backend.
+ * Supports multipart uploads with progress tracking.
+ */
+
+const API = (() => {
+    // Determine API base URL in this order:
+    // 1. `window.API_BASE` (settable by dev tools or hosting env)
+    // 2. <meta name="api-base" content="..."> in HTML
+    // 3. fallback to current origin so static-hosted frontend works when mounted by backend
+    const BASE_URL = (
+        window.API_BASE ||
+        document.querySelector('meta[name="api-base"]')?.content ||
+        window.location.origin
+    );
+
+    // ── Helpers ──────────────────────────────────────────────────────
+
+    async function _request(method, path, { body, params } = {}) {
+        let url = `${BASE_URL}${path}`;
+        if (params) {
+            const qs = new URLSearchParams(params).toString();
+            url += `?${qs}`;
+        }
+
+        const headers = {};
+        let fetchBody = body;
+
+        // If body is plain object, JSON-encode it
+        if (body && !(body instanceof FormData) && typeof body === 'object') {
+            headers['Content-Type'] = 'application/json';
+            fetchBody = JSON.stringify(body);
+        }
+
+        const res = await fetch(url, { method, headers, body: fetchBody });
+
+        if (!res.ok) {
+            let error;
+            try {
+                error = await res.json();
+            } catch {
+                error = { error: res.statusText };
+            }
+            const err = new Error(error.error || 'Request failed');
+            err.status = res.status;
+            err.detail = error.detail;
+            throw err;
+        }
+
+        return res.json();
+    }
+
+    // ── Upload with XHR for progress ────────────────────────────────
+
+    function uploadFiles(files, onProgress) {
+        return new Promise((resolve, reject) => {
+            const form = new FormData();
+            for (const file of files) {
+                form.append('files', file);
+            }
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', `${BASE_URL}/api/documents/upload`);
+
+            xhr.upload.addEventListener('progress', (e) => {
+                if (e.lengthComputable && onProgress) {
+                    onProgress(Math.round((e.loaded / e.total) * 100));
+                }
+            });
+
+            xhr.addEventListener('load', () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    resolve(JSON.parse(xhr.responseText));
+                } else {
+                    let err;
+                    try {
+                        err = JSON.parse(xhr.responseText);
+                    } catch {
+                        err = { error: xhr.statusText };
+                    }
+                    reject(new Error(err.error || 'Upload failed'));
+                }
+            });
+
+            xhr.addEventListener('error', () => reject(new Error('Network error')));
+            xhr.addEventListener('abort', () => reject(new Error('Upload cancelled')));
+
+            xhr.send(form);
+        });
+    }
+
+    // ── Chat & RAG ──────────────────────────────────────────────────
+    async function chatStream(message, conversationId, onUpdate) {
+        const payload = { message };
+        if (conversationId) {
+            payload.conversation_id = conversationId;
+        }
+
+        const response = await fetch(`${BASE_URL}/api/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || `HTTP ${response.status}`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            
+            // SSE lines are separated by \n\n
+            const parts = buffer.split('\n\n');
+            buffer = parts.pop(); // last part might be incomplete
+
+            for (const part of parts) {
+                if (part.startsWith('data: ')) {
+                    const dataStr = part.slice(6);
+                    if (dataStr.trim() === '{}') continue;
+                    
+                    try {
+                        const data = JSON.parse(dataStr);
+                        if (data.error) throw new Error(data.error);
+                        onUpdate(data.text, data.citations);
+                    } catch (e) {
+                        console.error('Error parsing SSE data:', dataStr, e);
+                    }
+                }
+            }
+        }
+    }
+
+    // ── Public API ──────────────────────────────────────────────────
+
+    return {
+        healthCheck:    () => _request('GET', '/api/health'),
+        listDocuments:  (limit = 50, offset = 0) =>
+                            _request('GET', '/api/documents', { params: { limit, offset } }),
+        getDocument:    (id) => _request('GET', `/api/documents/${id}`),
+        deleteDocument: (id) => _request('DELETE', `/api/documents/${id}`),
+        getChunks:      (id, limit = 100) =>
+                            _request('GET', `/api/documents/${id}/chunks`, { params: { limit } }),
+        uploadFiles,
+        chatStream,
+        getConversations: () => _request('GET', '/api/conversations'),
+        getConversation:  (id) => _request('GET', `/api/conversations/${id}`),
+    };
+})();

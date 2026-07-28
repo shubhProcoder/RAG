@@ -1,0 +1,87 @@
+"""
+Application configuration via environment variables.
+
+Uses Pydantic Settings so every value can be overridden with an env var
+or a ``.env`` file.
+"""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _default_data_dir() -> str:
+    """Resolve the default data directory (relative to project root)."""
+    return str(Path(__file__).resolve().parent.parent.parent / "data")
+
+
+class Settings(BaseSettings):
+    """Central configuration — all values are overridable via env vars."""
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
+
+    # ── Paths ────────────────────────────────────────────────────────────
+    DATA_DIR: str = _default_data_dir()
+
+    @property
+    def upload_dir(self) -> Path:
+        p = Path(self.DATA_DIR) / "uploads"
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
+    @property
+    def chroma_dir(self) -> Path:
+        p = Path(self.DATA_DIR) / "chroma_db"
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
+    @property
+    def metadata_db_path(self) -> Path:
+        Path(self.DATA_DIR).mkdir(parents=True, exist_ok=True)
+        return Path(self.DATA_DIR) / "metadata.db"
+
+    # ── Upload limits ────────────────────────────────────────────────────
+    MAX_FILE_SIZE_MB: int = 50
+    ALLOWED_EXTENSIONS: list[str] = [".pdf"]
+
+    # ── Chunking ─────────────────────────────────────────────────────────
+    CHUNK_SIZE: int = 1000
+    CHUNK_OVERLAP: int = 200
+
+    # ── Embedding ────────────────────────────────────────────────────────
+    EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
+    EMBEDDING_BATCH_SIZE: int = 64
+    EMBEDDING_DIMENSION: int = 384
+
+    # ── OCR ──────────────────────────────────────────────────────────────
+    OCR_ENABLED: bool = True
+    OCR_LANGUAGE: str = "eng"
+    OCR_MIN_TEXT_LENGTH: int = 50  # pages with fewer chars trigger OCR
+
+    # ── Server ───────────────────────────────────────────────────────────
+    API_HOST: str = "0.0.0.0"
+    API_PORT: int = 8000
+    CORS_ORIGINS: list[str] = ["*"]
+    LOG_LEVEL: str = "INFO"
+
+    # ── App metadata ─────────────────────────────────────────────────────
+    APP_NAME: str = "PDF RAG System"
+    APP_VERSION: str = "0.1.0"
+
+    # ── LLM / RAG ────────────────────────────────────────────────────────
+    OPENAI_API_KEY: str = ""
+    OPENAI_API_BASE: str | None = None
+    LLM_MODEL: str = "gpt-4o-mini"
+    TOP_K_RETRIEVAL: int = 5
+    SIMILARITY_THRESHOLD: float = 0.5  # Ignore chunks with distance above this
+
+# Singleton — import this everywhere instead of constructing a new instance.
+settings = Settings()
