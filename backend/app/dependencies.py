@@ -27,7 +27,8 @@ from app.services.chat_service import ChatService
 from app.services.insights_service import InsightsService
 from app.services.evidence_assessor import EvidenceAssessor
 from app.services.decision_controller import DecisionController
-from app.services.learner_state_stub import FixedLearnerStateEstimator
+from app.services.learner_state import LearnerStateEstimator
+from app.storage.signal_store import SQLiteSignalStore
 
 logger = logging.getLogger(__name__)
 
@@ -109,8 +110,8 @@ async def startup() -> None:
         strong_limit=settings.STRONG_LIMIT,
     )
     decision_controller = DecisionController.from_file(settings.DECISION_TABLE_PATH)
-    # Replaced by the real LSE estimator at integration.
-    learner_estimator = FixedLearnerStateEstimator()
+       # LSE: learner state from the student's last 3 rating signals (SRS 3.2.4)
+    learner_estimator = LearnerStateEstimator(SQLiteSignalStore(str(settings.metadata_db_path)))
 
     _chat_service = ChatService(
         retriever=retriever,
