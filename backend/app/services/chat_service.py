@@ -99,7 +99,8 @@ class ChatService:
 
         # 3. Dual-State decision: evidence (ECA) + learner (LSE) -> action (DSC)
         evidence_state, evidence_score = await self._evidence.assess(search_query, citations)
-        learner_state = await self._estimate_learner(conv.id, self._topic_of(citations))
+        topic = self._topic_of(citations)
+        learner_state = await self._estimate_learner(conv.id, topic)
         action = self._decision.decide(learner_state, evidence_state, conversation_id=conv.id)
 
         tutor_state = TutorState(
@@ -109,7 +110,7 @@ class ChatService:
             teaching_action=action,
             table_version=self._decision.version,
         )
-        meta = {"conversation_id": conv.id, "tutor_state": tutor_state}
+        meta = {"conversation_id": conv.id, "topic": topic, "tutor_state": tutor_state}
         logger.info(
             "Tutor state: learner=%s evidence=%s (%.2f) action=%s",
             learner_state, evidence_state.value, evidence_score, action.value,

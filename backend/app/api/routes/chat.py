@@ -40,7 +40,7 @@ async def chat(
                 if citations:
                     data["citations"] = [c.model_dump() for c in citations]
                 if meta:
-                    data["conversation_id"] = meta["conversation_id"]
+                    data["topic"] = meta["topic"]
                     data["tutor_state"] = meta["tutor_state"].model_dump(mode="json")
 
                 yield f"data: {json.dumps(data)}\n\n"
