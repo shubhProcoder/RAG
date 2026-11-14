@@ -152,7 +152,11 @@ class ChatComponent {
         let fullResponse = '';
         
         try {
-            await API.chatStream(text, this.currentConversationId, (chunk, citations) => {
+            await API.chatStream(text, this.currentConversationId, (chunk, citations, data) => {
+                // Keep the conversation the server created, so follow-up questions share its history
+                if (data && data.conversation_id && !this.currentConversationId) {
+                    this.currentConversationId = data.conversation_id;
+                }
                 if (fullResponse === '') {
                     contentDiv.innerHTML = ''; // Clear loading
                 }

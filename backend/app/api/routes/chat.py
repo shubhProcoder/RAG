@@ -27,18 +27,22 @@ async def chat(
 ) -> StreamingResponse:
     """
     Stream a chat response via Server-Sent Events (SSE).
-    The first event will contain citations metadata. Subsequent events contain text chunks.
+    The first event will contain citations metadata, the conversation id and the Tutor State.
+    Subsequent events contain text chunks.
     """
     async def sse_generator() -> AsyncGenerator[str, None]:
         try:
-            async for chunk, citations in chat_service.chat_stream(request):
+            async for chunk, citations, meta in chat_service.chat_stream(request):
                 # Build an SSE payload
                 data = {
                     "text": chunk,
                 }
                 if citations:
                     data["citations"] = [c.model_dump() for c in citations]
-                    
+                if meta:
+                    data["conversation_id"] = meta["conversation_id"]
+                    data["tutor_state"] = meta["tutor_state"].model_dump(mode="json")
+
                 yield f"data: {json.dumps(data)}\n\n"
             
             yield "event: done\ndata: {}\n\n"

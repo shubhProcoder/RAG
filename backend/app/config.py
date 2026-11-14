@@ -80,8 +80,15 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     OPENAI_API_BASE: str | None = None
     LLM_MODEL: str = "gpt-4o-mini"
+    LLM_TIMEOUT_SECONDS: float = 30.0  # SRS: AI WAIT LIMIT
     TOP_K_RETRIEVAL: int = 5
-    SIMILARITY_THRESHOLD: float = 0.5  # Ignore chunks with distance above this
+    # Keep every top-k chunk (cosine distance is 0..2) so the ECA module sees all scores.
+    SIMILARITY_THRESHOLD: float = 2.0  # Ignore chunks with distance above this
+
+    # ── Dual-State tutoring (SRS 3.2.5 and 3.2.6) ────────────────────────
+    PARTIAL_LIMIT: float = 0.50  # best score below this -> Insufficient
+    STRONG_LIMIT: float = 0.75  # best score for Strong (with 2+ passages above PARTIAL_LIMIT)
+    DECISION_TABLE_PATH: str = str(Path(__file__).resolve().parent / "data" / "decision_table.json")
 
 # Singleton — import this everywhere instead of constructing a new instance.
 settings = Settings()

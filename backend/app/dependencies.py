@@ -25,6 +25,9 @@ from app.services.retriever_service import RetrieverService
 from app.services.prompt_builder import PromptBuilder
 from app.services.chat_service import ChatService
 from app.services.insights_service import InsightsService
+from app.services.evidence_assessor import EvidenceAssessor
+from app.services.decision_controller import DecisionController
+from app.services.learner_state_stub import FixedLearnerStateEstimator
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +69,7 @@ async def startup() -> None:
         api_key=settings.OPENAI_API_KEY,
         model=settings.LLM_MODEL,
         base_url=settings.OPENAI_API_BASE,
+        timeout=settings.LLM_TIMEOUT_SECONDS,
     )
 
     # Services
@@ -98,11 +102,25 @@ async def startup() -> None:
     )
     prompt_builder = PromptBuilder()
 
+    # Dual-State tutoring
+    evidence_assessor = EvidenceAssessor(
+        llm=_llm_provider,
+        partial_limit=settings.PARTIAL_LIMIT,
+        strong_limit=settings.STRONG_LIMIT,
+    )
+    decision_controller = DecisionController.from_file(settings.DECISION_TABLE_PATH)
+    # Replaced by the real LSE estimator at integration.
+    learner_estimator = FixedLearnerStateEstimator()
+
     _chat_service = ChatService(
         retriever=retriever,
         prompt_builder=prompt_builder,
         llm=_llm_provider,
         conversation_store=_conversation_store,
+        evidence_assessor=evidence_assessor,
+        learner_estimator=learner_estimator,
+        decision_controller=decision_controller,
+        top_k=settings.TOP_K_RETRIEVAL,
     )
 
     _insights_service = InsightsService(

@@ -129,7 +129,7 @@ const API = (() => {
                     try {
                         const data = JSON.parse(dataStr);
                         if (data.error) throw new Error(data.error);
-                        onUpdate(data.text, data.citations);
+                        onUpdate(data.text, data.citations, data);
                     } catch (e) {
                         console.error('Error parsing SSE data:', dataStr, e);
                     }
