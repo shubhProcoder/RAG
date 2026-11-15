@@ -3,17 +3,22 @@ Integration tests for API endpoints.
 """
 
 import pytest
+import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 
+from app.config import settings
 from app.main import app
 
 
-@pytest.fixture
-async def client():
-    """Async test client using httpx."""
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        yield ac
+@pytest_asyncio.fixture
+async def client(tmp_path, monkeypatch):
+    """Async test client using httpx, with the app started on a temporary data folder."""
+    monkeypatch.setattr(settings, "DATA_DIR", str(tmp_path))
+    # ASGITransport does not run the lifespan, so start the services ourselves.
+    async with app.router.lifespan_context(app):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            yield ac
 
 
 @pytest.mark.asyncio

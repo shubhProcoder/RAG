@@ -129,7 +129,7 @@ const API = (() => {
                     try {
                         const data = JSON.parse(dataStr);
                         if (data.error) throw new Error(data.error);
-                        onUpdate(data.text, data.citations);
+                        onUpdate(data.text, data.citations, data);
                     } catch (e) {
                         console.error('Error parsing SSE data:', dataStr, e);
                     }
@@ -152,5 +152,11 @@ const API = (() => {
         chatStream,
         getConversations: () => _request('GET', '/api/conversations'),
         getConversation:  (id) => _request('GET', `/api/conversations/${id}`),
+        // Learner rating: Got it = 1, Not sure = 0, Confused = -1
+        sendFeedback: (conversationId, signal, topic) => {
+            const body = { conversation_id: conversationId, signal };
+            if (topic) body.topic = topic;
+            return _request('POST', '/api/feedback', { body });
+        },
     };
 })();
