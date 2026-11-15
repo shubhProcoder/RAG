@@ -82,7 +82,7 @@ REFUSAL_RE = re.compile(
     r"(could not find|couldn't find|can't find|cannot find|"
     r"not (?:found|mentioned|covered|provided|included|available|stated|specified|discussed)"
     r" (?:in|by|within) (?:the |your )?(?:provided |given |study )?(?:passages?|material|context|documents?|text|lectures?)|"
-    r"(?:does not|doesn't) (?:contain|mention|provide|cover|include|specify|discuss|say|have)|"
+    r"(?:does not|doesn't|do not|don't) (?:contain|mention|provide|cover|include|specify|discuss|say|have|list|state|explain|describe|define)|"
     r"no (?:information|mention|reference|details)|not enough information|"
     r"insufficient information|unable to (?:find|answer|provide)|"
     r"(?:cannot|can't) (?:answer|provide)|will not guess|"
@@ -319,8 +319,11 @@ def summarise(rows: list[dict[str, str]], question_ids: set[str], versions: list
     for v in versions:
         mine = [r for (qid, ver), r in latest.items() if ver == v and qid in question_ids]
         if not mine:
-            continue
+                       continue
         ok = [r for r in mine if r["outcome"] != "error"]
+        for r in ok:
+            # Re-check each saved answer with the current refusal rules
+            r["outcome"] = classify_outcome(r["teaching_action"], r["answer"])
         ans_q = [r for r in ok if r["answerable"] == "yes"]
         unans_q = [r for r in ok if r["answerable"] == "no"]
         unsupported = sum(r["outcome"] == "answered" for r in unans_q)
